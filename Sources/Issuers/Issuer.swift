@@ -617,7 +617,11 @@ private extension Issuer {
       .credentialsSupported[credentialConfigurationIdentifier] else {
       throw ValidationError.error(reason: "Invalid Supported credential for requestSingle")
     }
-    
+      
+      if let metadeta = issuerMetadata.batchCredentialIssuance {
+          
+      }
+      
     let proofs = try await obtainProofs(
       authorizedRequest: authorizedRequest,
       batchCredentialIssuance: issuerMetadata.batchCredentialIssuance,

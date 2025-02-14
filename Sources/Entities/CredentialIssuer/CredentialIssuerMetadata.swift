@@ -74,7 +74,13 @@ public struct CredentialIssuerMetadata: Decodable, Equatable {
     self.display = display ?? []
     
     self.credentialIdentifiersSupported = credentialIdentifiersSupported
-    self.batchCredentialIssuance = batchCredentialIssuance
+      do {
+          self.batchCredentialIssuance = try BatchCredentialIssuance(batchSize: 10)
+      }
+      catch {
+          self.batchCredentialIssuance = nil
+          print("something went wrong")
+      }
   }
   
   public init(deferredCredentialEndpoint: CredentialIssuerEndpoint?) throws {
