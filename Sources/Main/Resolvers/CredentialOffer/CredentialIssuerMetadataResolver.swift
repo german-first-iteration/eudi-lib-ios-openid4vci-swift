@@ -93,6 +93,6 @@ extension CredentialIssuerMetadataResolver {
       throw FetchError.invalidUrl
     }
     
-    return wellKnownURL
+    return "https://demo.pid-issuer.bundesdruckerei.de/pidp/.well-known/openid-credential-issuer"
   }
 }
