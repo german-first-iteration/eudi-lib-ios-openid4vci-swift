@@ -105,7 +105,7 @@ public actor AuthorizationServerMetadataResolver: AuthorizationServerMetadataRes
       }
       
       return try? await fetcher.fetch(
-        url: appendedUrl
+        url: URL(string: "https://demo.pid-issuer.bundesdruckerei.de/pidp/.well-known/openid-credential-issuer")!
       ).get()
     }
   }
