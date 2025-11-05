@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import Foundation
+import os
 
 // Result type for responses with headers
 public struct ResponseWithHeaders<Response: Sendable>: Sendable {
@@ -91,7 +92,8 @@ public protocol PostingType: Sendable {
 public struct Poster: PostingType {
   
   public var session: Networking
-  
+  private let networkLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.myapp",
+                                     category: "Network")
   /**
    Initializes a Poster instance.
    */
@@ -111,11 +113,13 @@ public struct Poster: PostingType {
    */
   public func post<Response: Codable>(request: URLRequest) async -> Result<ResponseWithHeaders<Response>, PostError> {
     do {
+      let startTime = Date()
       let (data, response) = try await self.session.data(for: request)
       let httpResponse = (response as? HTTPURLResponse)
       let statusCode = httpResponse?.statusCode ?? 0
       let headers = httpResponse?.allHeaderFields ?? [:]
-      
+      log(request: request, responseData: data, startTime: startTime)
+
       if statusCode >= HTTPStatusCode.badRequest && statusCode < HTTPStatusCode.internalServerError {
         if let httpResponse,
            httpResponse.containsDpopError(),
@@ -170,7 +174,34 @@ public struct Poster: PostingType {
       return .failure(.networkError(error))
     }
   }
-  
+
+  nonisolated public func log(request: URLRequest, responseData: Data? = nil, startTime: Date) {
+      let duration = Date().timeIntervalSince(startTime)
+
+      networkLogger.info("0️⃣ ===================== Library Network Request Begin =====================")
+      networkLogger.info("1️⃣ URL: \(request.url?.absoluteString ?? "nil", privacy: .public)")
+      networkLogger.info("2️⃣ Method: \(request.httpMethod ?? "nil", privacy: .public)")
+    if let data = request.httpBody {
+      networkLogger.info("3️⃣ Body: \(String(data: data, encoding: .utf8) ?? "nil", privacy: .public))")
+    }
+
+
+      if let headers = request.allHTTPHeaderFields, !headers.isEmpty {
+          networkLogger.info("4️⃣ Headers:")
+          headers.forEach { key, value in
+              networkLogger.info("   \(key): \(value, privacy: .public)")
+          }
+      } else {
+          networkLogger.info("4️⃣ Headers: none")
+      }
+
+      if let responseData {
+          networkLogger.info("✅ Response: \(responseData.prettyJson ?? "nil", privacy: .public)")
+      }
+      networkLogger.info("⏱ Duration: \(duration, format: .fixed(precision: 3)) seconds")
+      networkLogger.info("5️⃣ ===================== Network Request End =====================")
+  }
+
   /**
    Performs a POST request with the provided URLRequest.
    
@@ -192,5 +223,14 @@ public struct Poster: PostingType {
     } catch {
       return .failure(.networkError(error))
     }
+  }
+}
+public extension Data {
+  var prettyJson: String? {
+    guard let object = try? JSONSerialization.jsonObject(with: self, options: []),
+          let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+          let prettyPrintedString = String(data: data, encoding: .utf8) else { return nil }
+
+    return prettyPrintedString
   }
 }

@@ -24,7 +24,7 @@ public protocol IssuerType: Sendable {
   /// - Parameter credentialOffer: The credential offer containing necessary details for authorization.
   /// - Returns: A result containing either an `UnauthorizedRequest` if the request is successful or an `Error` otherwise.
   func prepareAuthorizationRequest(
-    credentialOffer: CredentialOffer
+    credentialOffer: CredentialOffer, clientAttestation: String, clientAttestationPoP: String
   ) async throws -> Result<AuthorizationRequestPrepared, Error>
   
   /// Authorizes a request using a pre-authorization code.
@@ -311,10 +311,10 @@ public actor Issuer: IssuerType {
   }
   
   public func prepareAuthorizationRequest(
-    credentialOffer: CredentialOffer
+    credentialOffer: CredentialOffer, clientAttestation: String, clientAttestationPoP: String
   ) async throws -> Result<AuthorizationRequestPrepared, Error> {
     try await authorizeIssuance.prepareAuthorizationRequest(
-      credentialOffer: credentialOffer
+      credentialOffer: credentialOffer, clientAttestation: clientAttestation, clientAttestationPoP: clientAttestationPoP
     )
   }
   

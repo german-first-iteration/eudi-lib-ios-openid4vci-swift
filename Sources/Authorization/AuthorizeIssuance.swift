@@ -21,7 +21,7 @@ protocol AuthorizeIssuanceType: Sendable {
   /// - Parameter credentialOffer: The credential offer containing necessary details for authorization.
   /// - Returns: A result containing either an `UnauthorizedRequest` if the request is successful or an `Error` otherwise.
   func prepareAuthorizationRequest(
-    credentialOffer: CredentialOffer
+    credentialOffer: CredentialOffer, clientAttestation: String, clientAttestationPoP: String
   ) async throws -> Result<AuthorizationRequestPrepared, Error>
   
   /// Authorizes a request using a pre-authorization code.
@@ -71,7 +71,7 @@ internal actor AuthorizeIssuance: AuthorizeIssuanceType {
   }
   
   func prepareAuthorizationRequest(
-    credentialOffer: CredentialOffer
+    credentialOffer: CredentialOffer, clientAttestation: String, clientAttestationPoP: String
   ) async throws -> Result<AuthorizationRequestPrepared, any Error> {
     
     let issuerState: String? = getIssuerState(from: credentialOffer)
@@ -87,7 +87,7 @@ internal actor AuthorizeIssuance: AuthorizeIssuanceType {
         scopes: scopes,
         credentialConfigurationIdentifiers: identifiers,
         issuerState: issuerState,
-        state: state
+        state: state, clientAttestation: clientAttestation, clientAttestationPoP: clientAttestationPoP
       )
       
     } else {
@@ -278,7 +278,7 @@ private extension AuthorizeIssuance {
     scopes: [Scope],
     credentialConfigurationIdentifiers: [CredentialConfigurationIdentifier],
     issuerState: String?,
-    state: String
+    state: String, clientAttestation: String, clientAttestationPoP: String
   ) async -> Result<AuthorizationRequestPrepared, any Error> {
     do {
       let resource: String? = issuerMetadata.authorizationServers.map { _ in
@@ -296,7 +296,7 @@ private extension AuthorizeIssuance {
         issuerState: issuerState,
         resource: resource,
         dpopNonce: nil,
-        retry: true
+        retry: true, clientAttestation: clientAttestation, clientAttestationPoP: clientAttestationPoP
       ).get()
 
       return .success(

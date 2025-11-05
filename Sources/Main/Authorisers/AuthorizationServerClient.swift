@@ -66,7 +66,7 @@ protocol AuthorizationServerClientType: Sendable {
     issuerState: String?,
     resource: String?,
     dpopNonce: Nonce?,
-    retry: Bool
+    retry: Bool, clientAttestation: String, clientAttestationPoP: String
   ) async throws -> Result<(PKCEVerifier, AuthorizationCodeURL, Nonce?), Error>
   
   /// Requests an access token using an authorization code.
@@ -283,7 +283,7 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
     issuerState: String?,
     resource: String? = nil,
     dpopNonce: Nonce? = nil,
-    retry: Bool = true
+    retry: Bool = true, clientAttestation: String, clientAttestationPoP: String
   ) async throws -> Result<(PKCEVerifier, AuthorizationCodeURL, Nonce?), Error> {
     
     let scopesAreValid = scopes.isEmpty == false
@@ -320,15 +320,20 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
         )
       }
       
-      let clientAttestationHeaders = clientAttestationHeaders(
-        clientAttestation: try generateClientAttestationIfNeeded(
-          clock: Clock(),
-          authServerId: URL(
-            string: authorizationServerMetadata.issuer ?? ""
-          )
-        )
-      )
-      
+//      let clientAttestationHeaders = clientAttestationHeaders(
+//        clientAttestation: try generateClientAttestationIfNeeded(
+//          clock: Clock(),
+//          authServerId: URL(
+//            string: authorizationServerMetadata.issuer ?? ""
+//          )
+//        )
+//      )
+
+      let clientAttestationHeaders = [
+        Constants.OAUTH_CLIENT_ATTESTATION: clientAttestation,
+        Constants.OAUTH_CLIENT_ATTESTATION_POP: clientAttestationPoP
+      ]
+
       let tokenHeaders = try await tokenEndPointHeaders(
         url: parEndpoint,
         dpopNonce: dpopNonce
@@ -383,7 +388,7 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
               state: state,
               issuerState: issuerState,
               dpopNonce: nonce,
-              retry: false
+              retry: false, clientAttestation: clientAttestation, clientAttestationPoP: clientAttestationPoP
             )
           } else {
             return .failure(ValidationError.retryFailedAfterDpopNonce)
