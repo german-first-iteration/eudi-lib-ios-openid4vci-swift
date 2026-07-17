@@ -96,7 +96,7 @@ public extension BindingKey {
       let header: JWSHeader = try .init(parameters: [
         JWTClaimNames.type: Self.OpenID4VCIProofJWT,
         JWTClaimNames.algorithm: algorithm.name,
-        JWTClaimNames.JWK: jwk.toDictionary()
+        JWTClaimNames.JWK: jwk.publicHeaderParameters()
       ])
       
       let dictionary: [String: Any] = [

@@ -84,16 +84,23 @@ public final class DPoPConstructor: DPoPConstructorType {
     nonce: Nonce?
   ) async throws -> String {
 
+    var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
+    components?.query = nil
+    components?.fragment = nil
+    guard let htu = components?.url?.absoluteString else {
+      throw ValidationError.invalidUrl(endpoint.absoluteString)
+    }
+
     let header = try JWSHeader(parameters: [
       JWTClaimNames.type: Self.type,
       JWTClaimNames.algorithm: algorithm.name,
-      JWTClaimNames.JWK: jwk.toDictionary()
+      JWTClaimNames.JWK: jwk.publicHeaderParameters()
     ])
 
     var dictionary: [String: Any] = [
       JWTClaimNames.issuedAt: Int(Date().timeIntervalSince1970.rounded()),
       JWTClaimNames.htm: Methods.post.rawValue,
-      JWTClaimNames.htu: endpoint.absoluteString,
+      JWTClaimNames.htu: htu,
       JWTClaimNames.jwtId: String.randomBase64URLString(length: 20)
     ]
     
