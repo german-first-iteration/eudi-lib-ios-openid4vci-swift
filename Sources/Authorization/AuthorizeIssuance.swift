@@ -141,7 +141,7 @@ internal actor AuthorizeIssuance: AuthorizeIssuanceType {
             accessToken,
             refreshToken,
             identifiers,
-            expiresIn,
+            _,
             dPopNonce
           ) = try await authorizer.requestAccessTokenPreAuthFlow(
           preAuthorizedCode: authorisation,
@@ -155,14 +155,8 @@ internal actor AuthorizeIssuance: AuthorizeIssuanceType {
         )
         
           return AuthorizedRequest(
-              accessToken: try .init(
-                accessToken: accessToken.accessToken,
-                tokenType: accessToken.tokenType,
-                expiresIn: expiresIn?.asTimeInterval ?? .zero
-              ),
-              refreshToken: try .init(
-                refreshToken: refreshToken.refreshToken
-              ),
+              accessToken: accessToken,
+              refreshToken: refreshToken,
               credentialIdentifiers: identifiers,
               timeStamp: Date().timeIntervalSinceReferenceDate,
               dPopNonce: dPopNonce,
@@ -189,7 +183,7 @@ internal actor AuthorizeIssuance: AuthorizeIssuanceType {
     let challenge = try? await challenger?.getChallenge()
     let response: (
       accessToken: IssuanceAccessToken,
-      refreshToken: IssuanceRefreshToken,
+      refreshToken: IssuanceRefreshToken?,
       identifiers: AuthorizationDetailsIdentifiers?,
       tokenType: TokenType?,
       expiresIn: Int?,
@@ -204,14 +198,8 @@ internal actor AuthorizeIssuance: AuthorizeIssuanceType {
     )
     
     return AuthorizedRequest(
-      accessToken: try .init(
-        accessToken: response.accessToken.accessToken,
-        tokenType: response.tokenType,
-        expiresIn: TimeInterval(response.expiresIn ?? .zero)
-      ),
-      refreshToken: try .init(
-        refreshToken: response.refreshToken.refreshToken
-      ),
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
       credentialIdentifiers: response.identifiers,
       timeStamp: Date().timeIntervalSinceReferenceDate,
       dPopNonce: response.dPopNonce,

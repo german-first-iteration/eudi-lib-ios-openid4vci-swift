@@ -20,18 +20,18 @@ public enum TokenType: String, Codable, Sendable {
   case dpop = "DPoP"
   
   public init(value: String?) {
-    guard let value else {
-      self = .bearer
-      return
+    self = Self.parse(value) ?? .bearer
+  }
+
+  public static func parse(_ value: String?) -> TokenType? {
+    guard let value else { return nil }
+    if value.caseInsensitiveCompare(TokenType.bearer.rawValue) == .orderedSame {
+      return .bearer
     }
-    
-    if value == TokenType.bearer.rawValue {
-      self = .bearer
-    } else if value == TokenType.dpop.rawValue {
-      self = .dpop
-    } else {
-      self = .bearer
+    if value.caseInsensitiveCompare(TokenType.dpop.rawValue) == .orderedSame {
+      return .dpop
     }
+    return nil
   }
 }
 
@@ -44,7 +44,7 @@ public struct IssuanceAccessToken: Codable, CanExpire, Sendable {
   public init(
     accessToken: String,
     tokenType: TokenType?,
-    expiresIn: TimeInterval = .zero
+    expiresIn: TimeInterval? = nil
   ) throws {
     guard !accessToken.isEmpty else {
       throw ValidationError.error(reason: "Access token cannot be empty")
@@ -65,19 +65,29 @@ public extension IssuanceAccessToken {
     dPopNonce: Nonce?,
     endpoint: URL?
   ) async throws -> [String: String] {
-    if tokenType == TokenType.bearer {
+    if tokenType != TokenType.dpop {
       return ["Authorization": "\(TokenType.bearer.rawValue) \(accessToken)"]
-    } else if let dpopConstructor, tokenType == TokenType.dpop, let endpoint {
-      let jwt = try await dpopConstructor.jwt(
-        endpoint: endpoint,
-        accessToken: accessToken,
-        nonce: dPopNonce
-      )
-      return [
-        "Authorization": "\(TokenType.dpop.rawValue) \(accessToken)",
-        TokenType.dpop.rawValue: jwt
-      ]
     }
-    return ["Authorization": "\(TokenType.bearer.rawValue) \(accessToken)"]
+
+    guard let dpopConstructor else {
+      throw ValidationError.error(
+        reason: "A DPoP proof constructor is required for a DPoP-bound access token"
+      )
+    }
+    guard let endpoint else {
+      throw ValidationError.error(
+        reason: "A target endpoint is required for a DPoP-bound access token"
+      )
+    }
+
+    let jwt = try await dpopConstructor.jwt(
+      endpoint: endpoint,
+      accessToken: accessToken,
+      nonce: dPopNonce
+    )
+    return [
+      "Authorization": "\(TokenType.dpop.rawValue) \(accessToken)",
+      TokenType.dpop.rawValue: jwt
+    ]
   }
 }
