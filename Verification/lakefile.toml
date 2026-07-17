@@ -1,0 +1,5 @@
+name = "openid4vci-verification"
+defaultTargets = ["OpenID4VCIVerification"]
+
+[[lean_lib]]
+name = "OpenID4VCIVerification"
