@@ -184,6 +184,7 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
   public let client: Client
   public let authorizationServerMetadata: IdentityAndAccessManagementMetadata
   public let credentialIssuerIdentifier: CredentialIssuerId
+  public let credentialIssuerHasAuthorizationServers: Bool
   public let dpopConstructor: DPoPConstructorType?
   public let challenger: ChallengeEndpointClientType?
   
@@ -199,6 +200,7 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
     config: OpenId4VCIConfig,
     authorizationServerMetadata: IdentityAndAccessManagementMetadata,
     credentialIssuerIdentifier: CredentialIssuerId,
+    credentialIssuerHasAuthorizationServers: Bool,
     dpopConstructor: DPoPConstructorType? = nil
   ) throws {
     self.service = service
@@ -210,6 +212,7 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
     
     self.authorizationServerMetadata = authorizationServerMetadata
     self.credentialIssuerIdentifier = credentialIssuerIdentifier
+    self.credentialIssuerHasAuthorizationServers = credentialIssuerHasAuthorizationServers
     
     self.redirectionURI = config.authFlowRedirectionURI
     self.client = config.client
@@ -293,11 +296,7 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
     )
     
     guard let urlWithParams = authorizationEndpoint.appendingQueryParameters(
-      try authzRequest.toDictionary().convertToDictionaryOfStrings(
-        excludingKeys: [
-          "credential_configuration_ids"
-        ]
-      )
+      try authzRequest.toDictionary().convertToDictionaryOfStrings()
     ) else {
       throw ValidationError.invalidUrl(parEndpoint?.absoluteString ?? "")
     }
@@ -827,17 +826,14 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
   func toAuthorizationDetail(
     credentialConfigurationIds: [CredentialConfigurationIdentifier]
   ) -> [AuthorizationDetail] {
-    credentialConfigurationIds.compactMap { id in
-      var locations: [String] = []
-      if credentialIssuerIdentifier.url.absoluteString != authorizationServerMetadata.issuer {
-        locations.append(credentialIssuerIdentifier.url.absoluteString)
-      }
-      
+    credentialConfigurationIds.map { id in
       return .init(
         type: .init(
           type: OPENID_CREDENTIAL
         ),
-        locations: locations,
+        locations: credentialIssuerHasAuthorizationServers
+          ? [credentialIssuerIdentifier.url.absoluteString]
+          : [],
         credentialConfigurationId: id.value
       )
     }
@@ -955,8 +951,7 @@ private extension AuthorizationServerClient {
     
     appendAuthorizationDetailsIfValid(
       to: &params,
-      identifiers: identifiers,
-      type: .init(type: OPENID_CREDENTIAL)
+      identifiers: identifiers
     )
     
     return JSON(params.filter { $0.value != nil })
@@ -981,8 +976,7 @@ private extension AuthorizationServerClient {
     
     appendAuthorizationDetailsIfValid(
       to: &params,
-      identifiers: identifiers,
-      type: .init(type: OPENID_CREDENTIAL)
+      identifiers: identifiers
     )
     
     return JSON(params.filter { $0.value != nil })
@@ -990,30 +984,18 @@ private extension AuthorizationServerClient {
   
   func appendAuthorizationDetailsIfValid(
     to params: inout [String: String?],
-    identifiers: [CredentialConfigurationIdentifier],
-    type: AuthorizationType
+    identifiers: [CredentialConfigurationIdentifier]
   ) {
     
     guard !identifiers.isEmpty else { return }
     
-    let formParameterString = identifiers
-      .convertToAuthorizationDetails(withType: type)
+    let formParameterString = toAuthorizationDetail(
+      credentialConfigurationIds: identifiers
+    )
       .toFormParameterString()
     
     if let formParameterString = formParameterString, !formParameterString.isEmpty {
       params[Constants.AUTHORIZATION_DETAILS] = formParameterString
-    }
-  }
-}
-
-extension Array where Element == CredentialConfigurationIdentifier {
-  func convertToAuthorizationDetails(withType type: AuthorizationType) -> [AuthorizationDetail] {
-    return self.map { identifier in
-      AuthorizationDetail(
-        type: type,
-        locations: [],
-        credentialConfigurationId: identifier.value
-      )
     }
   }
 }
@@ -1025,12 +1007,7 @@ extension Array where Element == AuthorizationDetail {
     
     do {
       let jsonData = try encoder.encode(self)
-      if let jsonString = String(data: jsonData, encoding: .utf8) {
-        // URL encode the JSON string
-        if let urlEncoded = jsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-          return urlEncoded
-        }
-      }
+      return String(data: jsonData, encoding: .utf8)
     } catch {}
     return nil
   }

@@ -102,8 +102,10 @@ public struct CredentialIssuerMetadata: Decodable, Equatable, Sendable {
       forKey: .credentialIssuerIdentifier
     )
     
-    let servers = try? container.decode([URL].self, forKey: .authorizationServers)
-    authorizationServers = servers ?? [credentialIssuerIdentifier.url]
+    authorizationServers = try container.decodeIfPresent(
+      [URL].self,
+      forKey: .authorizationServers
+    )
     
     credentialEndpoint = try container.decode(
       CredentialIssuerEndpoint.self,

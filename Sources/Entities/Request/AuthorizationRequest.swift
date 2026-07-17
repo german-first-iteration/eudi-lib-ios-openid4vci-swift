@@ -41,7 +41,6 @@ public struct AuthorizationRequest: Codable, Sendable {
     case clientId = "client_id"
     case redirectUri = "redirect_uri"
     case scope
-    case credentialConfigurationIds = "credential_configuration_ids"
     case state
     case responseMode = "response_mode"
     case codeChallenge = "code_challenge"
@@ -87,7 +86,7 @@ public struct AuthorizationRequest: Codable, Sendable {
     self.responseMode = responseMode
     self.codeChallenge = codeChallenge
     self.codeChallengeMethod = codeChallengeMethod
-    self.authorizationDetails = authorizationDetails
+    self.authorizationDetails = authorizationDetails ?? credentialConfigurationIds?.toFormParameterString()
     self.resource = resource
     self.includeGrantedScopes = includeGrantedScopes
     self.requestUri = requestUri
@@ -96,5 +95,34 @@ public struct AuthorizationRequest: Codable, Sendable {
     self.dpopJkt = dpopJkt
     self.trustChain = trustChain
     self.issuerState = issuerState
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    responseType = try container.decodeIfPresent(String.self, forKey: .responseType)
+    clientId = try container.decodeIfPresent(String.self, forKey: .clientId)
+    redirectUri = try container.decodeIfPresent(String.self, forKey: .redirectUri)
+    scope = try container.decodeIfPresent(String.self, forKey: .scope)
+    state = try container.decodeIfPresent(String.self, forKey: .state)
+    responseMode = try container.decodeIfPresent(String.self, forKey: .responseMode)
+    codeChallenge = try container.decodeIfPresent(String.self, forKey: .codeChallenge)
+    codeChallengeMethod = try container.decodeIfPresent(String.self, forKey: .codeChallengeMethod)
+    authorizationDetails = try container.decodeIfPresent(String.self, forKey: .authorizationDetails)
+    if let authorizationDetails {
+      credentialConfigurationIds = try JSONDecoder().decode(
+        [AuthorizationDetail].self,
+        from: Data(authorizationDetails.utf8)
+      )
+    } else {
+      credentialConfigurationIds = nil
+    }
+    resource = try container.decodeIfPresent(String.self, forKey: .resource)
+    includeGrantedScopes = try container.decodeIfPresent(String.self, forKey: .includeGrantedScopes)
+    requestUri = try container.decodeIfPresent(String.self, forKey: .requestUri)
+    request = try container.decodeIfPresent(String.self, forKey: .request)
+    prompt = try container.decodeIfPresent(String.self, forKey: .prompt)
+    dpopJkt = try container.decodeIfPresent(String.self, forKey: .dpopJkt)
+    trustChain = try container.decodeIfPresent(String.self, forKey: .trustChain)
+    issuerState = try container.decodeIfPresent(String.self, forKey: .issuerState)
   }
 }

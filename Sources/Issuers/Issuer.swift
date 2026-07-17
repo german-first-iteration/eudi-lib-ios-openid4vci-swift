@@ -216,6 +216,7 @@ public actor Issuer: IssuerType {
       config: config,
       authorizationServerMetadata: authorizationServerMetadata,
       credentialIssuerIdentifier: issuerMetadata.credentialIssuerIdentifier,
+      credentialIssuerHasAuthorizationServers: issuerMetadata.authorizationServers != nil,
       dpopConstructor: config.requireDpop ? dpopConstructor : nil
     )
     
@@ -286,6 +287,7 @@ public actor Issuer: IssuerType {
       config: config,
       authorizationServerMetadata: authorizationServerMetadata,
       credentialIssuerIdentifier: issuerMetadata.credentialIssuerIdentifier,
+      credentialIssuerHasAuthorizationServers: issuerMetadata.authorizationServers != nil,
       dpopConstructor: dpopConstructor
     )
     

@@ -93,7 +93,9 @@ public actor CredentialOfferRequestResolver {
         let authServerHint = getAuthorizationServerFromGrants(credentialOfferRequestObject.grants)
         let authorizationServerResult = selectAuthorizationServer(
           hint: authServerHint,
-          availableServers: credentialIssuerMetadata.authorizationServers
+          availableServers: credentialIssuerMetadata.authorizationServers ?? [
+            credentialIssuerMetadata.credentialIssuerIdentifier.url
+          ]
         )
 
         guard case .success(let authorizationServer) = authorizationServerResult else {
@@ -129,7 +131,9 @@ public actor CredentialOfferRequestResolver {
           let authServerHint = getAuthorizationServerFromGrants(credentialOfferRequestObject.grants)
           let authorizationServerResult = selectAuthorizationServer(
             hint: authServerHint,
-            availableServers: credentialIssuerMetadata.authorizationServers
+            availableServers: credentialIssuerMetadata.authorizationServers ?? [
+              credentialIssuerMetadata.credentialIssuerIdentifier.url
+            ]
           )
 
           guard case .success(let authorizationServer) = authorizationServerResult else {
