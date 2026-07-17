@@ -42,20 +42,20 @@ public struct NotificationObject: Sendable {
   }
 }
 
-public enum NotifiedEvent: String, Sendable {
-  case credentialAccepted = "CREDENTIAL_ACCEPTED"
-  case credentialFailure = "CREDENTIAL_FAILURE"
-  case credentialDeleted = "CREDENTIAL_DELETED"
+public enum NotifiedEvent: String, Codable, Sendable {
+  case credentialAccepted = "credential_accepted"
+  case credentialFailure = "credential_failure"
+  case credentialDeleted = "credential_deleted"
 }
 
 extension NotificationObject {
   func toDictionary() -> [String: Any] {
     var dictionary: [String: Any] = [
-      "id": id.value,
+      "notification_id": id.value,
       "event": event.rawValue
     ]
     if let eventDescription = eventDescription {
-      dictionary["eventDescription"] = eventDescription
+      dictionary["event_description"] = eventDescription
     }
     return dictionary
   }

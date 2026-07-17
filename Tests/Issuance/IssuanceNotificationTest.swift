@@ -120,12 +120,17 @@ class IssuanceNotificationTest: XCTestCase {
                 switch result {
                 case .deferred:
                   XCTAssert(false, "Unexpected deferred")
-                case .issued(_, let credential, _, _):
+                case .issued(_, let credential, let notificationId, _):
                   XCTAssert(true, "credential: \(credential)")
-                  
+
+                  let notification = NotificationObject(
+                    id: try .init(value: XCTUnwrap(notificationId)),
+                    event: .credentialAccepted,
+                    eventDescription: nil
+                  )
                   try await issuer.notify(
                     authorizedRequest: authorizedRequest,
-                    notificationId: .stub(),
+                    notificationId: notification,
                     dPopNonce: nil
                   )
                 }
