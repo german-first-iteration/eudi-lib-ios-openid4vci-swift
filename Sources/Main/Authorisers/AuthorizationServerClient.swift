@@ -89,7 +89,7 @@ protocol AuthorizationServerClientType: Sendable {
     maxRetries: Int
   ) async throws -> (
     IssuanceAccessToken,
-    IssuanceRefreshToken,
+    IssuanceRefreshToken?,
     AuthorizationDetailsIdentifiers?,
     TokenType?,
     Int?,
@@ -119,7 +119,7 @@ protocol AuthorizationServerClientType: Sendable {
     maxRetries: Int
   ) async throws -> (
     IssuanceAccessToken,
-    IssuanceRefreshToken,
+    IssuanceRefreshToken?,
     AuthorizationDetailsIdentifiers?,
     Int?,
     Nonce?
@@ -446,7 +446,7 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
     maxRetries: Int = Constants.MAX_RETRIES
   ) async throws -> (
     IssuanceAccessToken,
-    IssuanceRefreshToken,
+    IssuanceRefreshToken?,
     AuthorizationDetailsIdentifiers?,
     TokenType?,
     Int?,
@@ -485,21 +485,24 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
       
       switch response.body {
       case .success(let tokenType, let accessToken, let refreshToken, let refreshTokenExpiresIn, let expiresIn, _, let identifiers):
+        guard let parsedTokenType = TokenType.parse(tokenType) else {
+          throw ValidationError.error(reason: "Unsupported token type")
+        }
+        let issuedRefreshToken = try refreshToken.map {
+          try IssuanceRefreshToken(
+            refreshToken: $0,
+            expiresIn: .init(seconds: refreshTokenExpiresIn)
+          )
+        }
         return (
             try .init(
               accessToken: accessToken,
-              tokenType: .init(
-                value: tokenType
-              )
+              tokenType: parsedTokenType,
+              expiresIn: .init(seconds: expiresIn)
             ),
-            try .init(
-              refreshToken: refreshToken,
-              expiresIn: .init(seconds: refreshTokenExpiresIn)
-            ),
+            issuedRefreshToken,
             identifiers,
-            TokenType(
-              value: tokenType
-            ),
+            parsedTokenType,
             expiresIn,
             response.dpopNonce()
           )
@@ -525,19 +528,6 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
     } catch PostError.useAttestationNonce(let challenge) {
       guard maxRetries > 0 else {
         throw ValidationError.retryFailedAfterDpopNonce
-      }
-
-      return try await requestAccessTokenAuthFlow(
-        authorizationCode: authorizationCode,
-        codeVerifier: codeVerifier,
-        identifiers: identifiers,
-        dpopNonce: dpopNonce,
-        challenge: challenge,
-        maxRetries: maxRetries - 1
-      )
-    } catch PostError.networkError(let error) {
-      guard maxRetries > 0 else {
-        throw PostError.networkError(error)
       }
 
       return try await requestAccessTokenAuthFlow(
@@ -592,22 +582,24 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
         _,
         let identifiers
       ):
+        guard let parsedTokenType = TokenType.parse(tokenType) else {
+          throw ValidationError.error(reason: "Unsupported token type")
+        }
+        let issuedRefreshToken = try refreshToken.map {
+          try IssuanceRefreshToken(
+            refreshToken: $0,
+            expiresIn: .init(seconds: refreshTokenExpiresIn)
+          )
+        }
         return (
           try .init(
             accessToken: accessToken,
-            tokenType: .init(
-              value: tokenType
-            ),
-            expiresIn: TimeInterval(expiresIn)
+            tokenType: parsedTokenType,
+            expiresIn: .init(seconds: expiresIn)
           ),
-          try .init(
-            refreshToken: refreshToken,
-            expiresIn: TimeInterval(refreshTokenExpiresIn ?? .zero)
-          ),
+          issuedRefreshToken,
           identifiers,
-          .init(
-            value: tokenType
-          ),
+          parsedTokenType,
           expiresIn,
           response.dpopNonce()
         )
@@ -674,22 +666,24 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
         _,
         let identifiers
       ):
+          guard let parsedTokenType = TokenType.parse(tokenType) else {
+            throw ValidationError.error(reason: "Unsupported token type")
+          }
+          let issuedRefreshToken = try refreshToken.map {
+            try IssuanceRefreshToken(
+              refreshToken: $0,
+              expiresIn: .init(seconds: refreshTokenExpiresIn)
+            )
+          }
           return (
             try IssuanceAccessToken(
               accessToken: accessToken,
-              tokenType: .init(
-                value: tokenType
-              ),
-              expiresIn: TimeInterval(expiresIn)
+              tokenType: parsedTokenType,
+              expiresIn: .init(seconds: expiresIn)
             ),
-			try IssuanceRefreshToken(
-				refreshToken: refreshToken,
-        expiresIn: .init(seconds: refreshTokenExpiresIn)
-			),
+            issuedRefreshToken,
             identifiers,
-            TokenType(
-              value: tokenType
-            ),
+            parsedTokenType,
             expiresIn,
             response.dpopNonce()
           )
@@ -724,7 +718,7 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
     maxRetries: Int = Constants.MAX_RETRIES
   ) async throws -> (
     IssuanceAccessToken,
-    IssuanceRefreshToken,
+    IssuanceRefreshToken?,
     AuthorizationDetailsIdentifiers?,
     Int?,
     Nonce?
@@ -770,20 +764,25 @@ internal actor AuthorizationServerClient: AuthorizationServerClientType {
           _,
           let identifiers
         ):
+          guard let parsedTokenType = TokenType.parse(tokenType) else {
+            throw ValidationError.error(reason: "Unsupported token type")
+          }
+          let issuedRefreshToken = try refreshToken.map {
+            try IssuanceRefreshToken(
+              refreshToken: $0,
+              expiresIn: .init(seconds: refreshTokenExpiresIn)
+            )
+          }
           return (
               try .init(
                 accessToken: accessToken,
-                tokenType: .init(
-                  value: tokenType
-                )
+                tokenType: parsedTokenType,
+                expiresIn: .init(seconds: expiresIn)
               ),
-              try .init(
-                refreshToken: refreshToken,
-                expiresIn: .init(seconds: refreshTokenExpiresIn)
-              ),
+              issuedRefreshToken,
               identifiers,
               expiresIn,
-              dpopNonce
+              response.dpopNonce()
             )
         case .failure(let error, let errorDescription):
           throw CredentialIssuanceError.pushedAuthorizationRequestFailed(

@@ -24,7 +24,7 @@ public enum AccessTokenRequestResponse: Codable, Sendable {
     accessToken: String,
     refreshToken: String?,
     refreshTokenExpiresIn: Int?,
-    expiresIn: Int,
+    expiresIn: Int?,
     scope: String?,
     authorizationDetails: AuthorizationDetailsIdentifiers?
   )
@@ -49,29 +49,58 @@ public enum AccessTokenRequestResponse: Codable, Sendable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     
     if let accessToken = try? container.decode(String.self, forKey: .accessToken),
-       let expiresIn = try? container.decode(Int.self, forKey: .expiresIn) {
+       let tokenType = try? container.decode(String.self, forKey: .tokenType) {
+      guard TokenType.parse(tokenType) != nil else {
+        throw DecodingError.dataCorruptedError(
+          forKey: .tokenType,
+          in: container,
+          debugDescription: "Unsupported token_type '\(tokenType)'"
+        )
+      }
       
-      let tokenType = try? container.decode(String.self, forKey: .tokenType)
       let refeshToken = try? container.decode(String.self, forKey: .refreshToken)
       let refreshTokenExpiresIn = try? container.decode(Int.self, forKey: .refreshTokenExpiresIn)
+      let expiresIn = try? container.decode(Int.self, forKey: .expiresIn)
       var authorizationDetails: AuthorizationDetailsIdentifiers = [:]
       
-      let json = try? container.decode(JSON.self, forKey: .authorizationDetails)
-      if let array = json?.array {
+      if container.contains(.authorizationDetails) {
+        let json = try container.decode(JSON.self, forKey: .authorizationDetails)
+        guard let array = json.array, !array.isEmpty else {
+          throw DecodingError.dataCorruptedError(
+            forKey: .authorizationDetails,
+            in: container,
+            debugDescription: "authorization_details must be a non-empty array"
+          )
+        }
         for item in array {
-          if let key = item["credential_configuration_id"].string,
-             let values = item["credential_identifiers"].array,
-             let credentialConfigurationIdentifier = try? CredentialConfigurationIdentifier(value: key) {
-            
-            let credentialIdentifiers: [CredentialIdentifier] = values.compactMap {
-              guard let string = $0.string else { return nil }
-              return try? CredentialIdentifier(value: string)
-            }
-            
-            if !credentialIdentifiers.isEmpty {
-              authorizationDetails[credentialConfigurationIdentifier] = credentialIdentifiers
-            }
+          guard let key = item["credential_configuration_id"].string,
+                let values = item["credential_identifiers"].array,
+                let credentialConfigurationIdentifier = try? CredentialConfigurationIdentifier(value: key) else {
+            throw DecodingError.dataCorruptedError(
+              forKey: .authorizationDetails,
+              in: container,
+              debugDescription: "authorization_details contains an invalid credential configuration"
+            )
           }
+
+          let credentialIdentifiers = try values.map { value in
+            guard let string = value.string else {
+              throw DecodingError.dataCorruptedError(
+                forKey: .authorizationDetails,
+                in: container,
+                debugDescription: "credential_identifiers must contain strings"
+              )
+            }
+            return try CredentialIdentifier(value: string)
+          }
+          guard !credentialIdentifiers.isEmpty else {
+            throw DecodingError.dataCorruptedError(
+              forKey: .authorizationDetails,
+              in: container,
+              debugDescription: "credential_identifiers must not be empty"
+            )
+          }
+          authorizationDetails[credentialConfigurationIdentifier] = credentialIdentifiers
         }
       }
       
@@ -84,9 +113,11 @@ public enum AccessTokenRequestResponse: Codable, Sendable {
         scope: try? container.decode(String.self, forKey: .scope),
         authorizationDetails: (authorizationDetails.isEmpty ? nil : authorizationDetails)
       )
-    } else if let error = try? container.decode(String.self, forKey: .error),
-              let errorDescription = try? container.decode(String.self, forKey: .errorDescription) {
-      self = .failure(error: error, errorDescription: errorDescription)
+    } else if let error = try? container.decode(String.self, forKey: .error) {
+      self = .failure(
+        error: error,
+        errorDescription: try? container.decode(String.self, forKey: .errorDescription)
+      )
     } else {
       throw DecodingError.dataCorrupted(
         DecodingError.Context(
@@ -110,12 +141,12 @@ public enum AccessTokenRequestResponse: Codable, Sendable {
       scope,
       _
     ):
-      try container.encode(tokenType, forKey: .tokenType)
+      try container.encodeIfPresent(tokenType, forKey: .tokenType)
       try container.encode(accessToken, forKey: .accessToken)
-      try container.encode(refreshToken, forKey: .refreshToken)
-      try container.encode(refreshTokenExpiresIn, forKey: .refreshTokenExpiresIn)
-      try container.encode(expiresIn, forKey: .expiresIn)
-      try container.encode(scope, forKey: .scope)
+      try container.encodeIfPresent(refreshToken, forKey: .refreshToken)
+      try container.encodeIfPresent(refreshTokenExpiresIn, forKey: .refreshTokenExpiresIn)
+      try container.encodeIfPresent(expiresIn, forKey: .expiresIn)
+      try container.encodeIfPresent(scope, forKey: .scope)
     case let .failure(error, errorDescription):
       try container.encode(error, forKey: .error)
       try container.encode(errorDescription, forKey: .errorDescription)
