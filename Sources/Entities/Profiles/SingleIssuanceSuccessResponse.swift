@@ -48,26 +48,18 @@ public struct SingleIssuanceSuccessResponse: Codable, Sendable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     
-    // Decode fields
-    credential = try? container.decodeIfPresent(JSON.self, forKey: .credential)
-    credentials = try? container.decodeIfPresent([JSON].self, forKey: .credentials)
-    transactionId = try? container.decodeIfPresent(String.self, forKey: .transactionId)
-    interval = try? container.decodeIfPresent(TimeInterval.self, forKey: .interval)
-    notificationId = try? container.decodeIfPresent(String.self, forKey: .notificationId)
-  
-    if transactionId == nil && (credential == nil && credentials == nil) {
-      throw DecodingError.dataCorruptedError(
-        forKey: .credentials,
-        in: container,
-        debugDescription: "At least one of 'credential' or 'credentials' must be non-nil."
-      )
-    }
-    
-    if notificationId != nil && (credential == nil && credentials == nil) {
-      throw DecodingError.dataCorruptedError(
-        forKey: .notificationId,
-        in: container,
-        debugDescription: "'notificationId' must not be present if 'credential' is not present."
+    credential = try container.decodeIfPresent(JSON.self, forKey: .credential)
+    credentials = try container.decodeIfPresent([JSON].self, forKey: .credentials)
+    transactionId = try container.decodeIfPresent(String.self, forKey: .transactionId)
+    interval = try container.decodeIfPresent(TimeInterval.self, forKey: .interval)
+    notificationId = try container.decodeIfPresent(String.self, forKey: .notificationId)
+
+    if let validationIssue {
+      throw DecodingError.dataCorrupted(
+        .init(
+          codingPath: decoder.codingPath,
+          debugDescription: validationIssue
+        )
       )
     }
   }
@@ -76,7 +68,11 @@ public struct SingleIssuanceSuccessResponse: Codable, Sendable {
 public extension SingleIssuanceSuccessResponse {
   
   func toDomain() throws -> CredentialIssuanceResponse {
-    if let transactionId = transactionId, let interval = interval {
+    if let validationIssue {
+      throw ValidationError.error(reason: validationIssue)
+    }
+
+    if let transactionId, let interval {
       return .init(
         credentialResponses: [
           .deferred(
@@ -87,29 +83,20 @@ public extension SingleIssuanceSuccessResponse {
           )
         ]
       )
-    } else if let credential = credential,
-              let string = credential.string {
+    } else if let credential {
       return .init(
         credentialResponses: [
           .issued(
             format: nil,
-            credential: .string(string),
-            notificationId: nil,
+            credential: try Self.toCredential(credential),
+            notificationId: notificationId,
             additionalInfo: nil
           )
         ]
       )
-    } else if let credentials = credentials,
-              !credentials.isEmpty {
+    } else if let credentials {
       return .init(
-        credentialResponses: [
-          .issued(
-            format: nil,
-            credential: .json(JSON(credentials)),
-            notificationId: nil,
-            additionalInfo: nil
-          )
-        ]
+        credentialResponses: try credentials.map(toIssuedCredential)
       )
     } else {
       throw ValidationError.error(reason: "CredentialIssuanceResponse unparseable")
@@ -127,5 +114,96 @@ public extension SingleIssuanceSuccessResponse {
     } catch {
       return nil
     }
+  }
+}
+
+private extension SingleIssuanceSuccessResponse {
+
+  /// The top-level `credential` member is retained for compatibility with
+  /// earlier OpenID4VCI drafts and existing callers. Final 1.0 responses use
+  /// the `credentials` array instead.
+  var validationIssue: String? {
+    let responseMembers = [
+      credential != nil,
+      credentials != nil,
+      transactionId != nil
+    ].filter { $0 }.count
+
+    guard responseMembers == 1 else {
+      return "Exactly one of 'credential', 'credentials', or 'transaction_id' must be present."
+    }
+
+    if let credential, !Self.isSupportedCredential(credential) {
+      return "'credential' must be a string or an object."
+    }
+
+    if let credentials {
+      guard !credentials.isEmpty else {
+        return "'credentials' must contain at least one credential object."
+      }
+
+      for (index, response) in credentials.enumerated() {
+        guard let dictionary = response.dictionary,
+              let credential = dictionary["credential"],
+              Self.isSupportedCredential(credential) else {
+          return "'credentials[\(index)]' must be an object containing a string or object 'credential'."
+        }
+      }
+    }
+
+    if let transactionId {
+      guard !transactionId.isEmpty else {
+        return "'transaction_id' must not be empty."
+      }
+      guard let interval, interval > 0 else {
+        return "'interval' must be a positive number when 'transaction_id' is present."
+      }
+      guard notificationId == nil else {
+        return "'notification_id' must not be used with 'transaction_id'."
+      }
+    } else if interval != nil {
+      return "'interval' must only be used with 'transaction_id'."
+    }
+
+    if let notificationId, notificationId.isEmpty {
+      return "'notification_id' must not be empty."
+    }
+
+    return nil
+  }
+
+  static func isSupportedCredential(_ credential: JSON) -> Bool {
+    credential.type == .string || credential.type == .dictionary
+  }
+
+  static func toCredential(_ credential: JSON) throws -> Credential {
+    switch credential.type {
+    case .string:
+      guard let value = credential.string else {
+        throw ValidationError.error(reason: "Credential string is unparseable")
+      }
+      return .string(value)
+    case .dictionary:
+      return .json(credential)
+    default:
+      throw ValidationError.error(reason: "Credential must be a string or an object")
+    }
+  }
+
+  func toIssuedCredential(_ response: JSON) throws -> IssuedCredential {
+    guard var parameters = response.dictionary,
+          let credential = parameters.removeValue(forKey: "credential") else {
+      throw ValidationError.error(reason: "Credential response object is unparseable")
+    }
+
+    let format = parameters.removeValue(forKey: "format")?.string
+    let additionalInfo = parameters.isEmpty ? nil : JSON(parameters)
+
+    return .issued(
+      format: format,
+      credential: try Self.toCredential(credential),
+      notificationId: notificationId,
+      additionalInfo: additionalInfo
+    )
   }
 }

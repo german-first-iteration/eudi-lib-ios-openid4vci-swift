@@ -131,7 +131,7 @@ public actor IssuanceRequester: IssuanceRequesterType {
         encryptionSpec: encryptionSpec
       )
       
-      return try response.body.toSingleIssuanceResponse()
+      return try response.body.toDomain()
       
     } catch PostError.useDpopNonce(let nonce) {
       guard maxRetries > 0 else {
@@ -546,48 +546,5 @@ private extension IssuanceRequester {
     }
 
     return try jwe.decrypt(using: finalDecrypter)
-  }
-}
-
-private extension SingleIssuanceSuccessResponse {
-  func toSingleIssuanceResponse() throws -> CredentialIssuanceResponse {
-    if let credential = credential,
-       let string = credential.string {
-      return CredentialIssuanceResponse(
-        credentialResponses: [
-          .issued(
-            format: nil,
-            credential: .string(string),
-            notificationId: nil,
-            additionalInfo: nil
-          )
-        ]
-      )
-    } else if let credentials = credentials,
-       !credentials.isEmpty {
-      return .init(
-        credentialResponses: [
-          .issued(
-            format: nil,
-            credential: .json(JSON(credentials)),
-            notificationId: nil,
-            additionalInfo: nil
-          )
-        ]
-      )
-    } else if let transactionId = transactionId, let interval = interval {
-      return CredentialIssuanceResponse(
-        credentialResponses: [
-          .deferred(
-            transactionId: try .init(
-              value: transactionId
-            ),
-            interval: interval
-          )
-        ]
-      )
-      
-    }
-    throw CredentialIssuanceError.responseUnparsable("Got success response for issuance but response misses 'transaction_id' and 'certificate' parameters")
   }
 }
