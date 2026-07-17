@@ -60,13 +60,14 @@ public struct DefaultClientAttestationPoPBuilder: ClientAttestationPoPBuilder {
     switch client {
     case .attested(let attestationJWT, let popJwtSpec):
       
-      let now = Date().timeIntervalSince1970
-      let exp = Date().addingTimeInterval(popJwtSpec.duration).timeIntervalSince1970
+      let now = clock.now()
+      let issuedAt = now.timeIntervalSince1970
+      let exp = now.addingTimeInterval(popJwtSpec.duration).timeIntervalSince1970
       let payload: [String: Any?] = [
         JWTClaimNames.issuer: attestationJWT.clientId,
         JWTClaimNames.jwtId: String.randomBase64URLString(length: 20),
         JWTClaimNames.expirationTime: exp,
-        JWTClaimNames.issuedAt: now,
+        JWTClaimNames.issuedAt: issuedAt,
         JWTClaimNames.audience: authServerId.absoluteString,
         JWTClaimNames.cnf: attestationJWT.cnf,
         JWTClaimNames.challenge: challenge
