@@ -65,4 +65,32 @@ class AttestationBasedTests: XCTestCase {
     
     XCTAssertNotNil(client)
   }
+
+  func testClientAttestationPoPUsesProvidedClock() async throws {
+    let signingKey = try KeyController.generateECDHPrivateKey()
+    let client = try selfSignedClient(
+      clientId: WALLET_DEV_CLIENT_ID,
+      privateKey: signingKey
+    )
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    let proof = try await DefaultClientAttestationPoPBuilder().buildAttestationPoPJWT(
+      for: client,
+      algorithm: .ES256,
+      clock: FixedClock(date: now),
+      authServerId: try XCTUnwrap(URL(string: "https://issuer.example.com")),
+      challenge: nil
+    )
+    let payload = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: proof.jws.payload.data()) as? [String: Any]
+    )
+
+    XCTAssertEqual(payload[JWTClaimNames.issuedAt] as? TimeInterval, now.timeIntervalSince1970)
+    XCTAssertEqual(payload[JWTClaimNames.expirationTime] as? TimeInterval, now.addingTimeInterval(300).timeIntervalSince1970)
+  }
+}
+
+private struct FixedClock: ClockType {
+  let date: Date
+
+  func now() -> Date { date }
 }
