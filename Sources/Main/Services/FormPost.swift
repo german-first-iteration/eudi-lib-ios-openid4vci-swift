@@ -73,26 +73,21 @@ extension FormPost {
   // application/x-www-form-urlencoded encoder
   private enum FormURLEncoder {
     static func body(from formData: [String: Any]) throws -> Data {
-      var output = ""
+      var components: [String] = []
       for (n, v) in formData {
-        if !output.isEmpty {
-          output.append("&")
-        }
         if let collection = v as? [Any?] {
           for v in collection {
-            if !output.isEmpty {
-              output.append("&")
-            }
-            try append(to: &output, name: n, value: v)
+            components.append(try component(name: n, value: v))
           }
         } else {
-          try append(to: &output, name: n, value: v)
+          components.append(try component(name: n, value: v))
         }
       }
+      let output = components.joined(separator: "&")
       return output.data(using: .ascii)!
     }
 
-    static func append(to: inout String, name: String, value: Any?) throws {
+    static func component(name: String, value: Any?) throws -> String {
       guard let encodedName = encoded(string: name) else {
         throw FormURLEncodingError.unsupportedName(name)
       }
@@ -100,9 +95,7 @@ extension FormPost {
         let unsupportedValue: String = (value as? String) ?? ""
         throw FormURLEncodingError.unsupportedValue(unsupportedValue)
       }
-      to.append(encodedName)
-      to.append("=")
-      to.append(encodedValue)
+      return "\(encodedName)=\(encodedValue)"
     }
 
     static func encoded(string: String) -> String? {

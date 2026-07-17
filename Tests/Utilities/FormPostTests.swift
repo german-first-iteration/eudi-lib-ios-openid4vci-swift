@@ -154,6 +154,26 @@ final class FormPostTests: XCTestCase {
     XCTAssertEqual(formPost.urlRequest.httpBody, formPost.body)
   }
 
+  func testArrayFollowingScalarDoesNotAddEmptyFormComponent() throws {
+    let formPost = try FormPost(
+      url: URL(string: "https://example.com")!,
+      contentType: .form,
+      formData: [
+        "scalar": "value",
+        "multi": ["one", "two"]
+      ]
+    )
+
+    let body = String(decoding: formPost.body!, as: UTF8.self)
+    let components = body.split(
+      separator: "&",
+      omittingEmptySubsequences: false
+    )
+    XCTAssertEqual(components.count, 3)
+    XCTAssertFalse(components.contains(where: \.isEmpty))
+    XCTAssertFalse(body.contains("&&"))
+  }
+
   func testEmptyFormDataProducesEmptyObjectJSONBodyToRequest() throws {
     let formPost = try FormPost(
       url: URL(string: "http://example14.com")!,

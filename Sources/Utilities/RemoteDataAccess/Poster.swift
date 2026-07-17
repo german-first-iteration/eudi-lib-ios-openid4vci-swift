@@ -34,6 +34,7 @@ public extension ResponseWithHeaders {
 
 public enum PostError: LocalizedError {
   case invalidUrl
+  case invalidResponse
   case networkError(Error)
   case cannotParse(String)
   case serverError
@@ -50,6 +51,8 @@ public enum PostError: LocalizedError {
     switch self {
     case .invalidUrl:
       return "Invalid URL"
+    case .invalidResponse:
+      return "Invalid HTTP response"
     case .networkError(let error):
       return "Network Error: \(error.localizedDescription)"
     case .cannotParse(let string):
@@ -115,13 +118,14 @@ public struct Poster: PostingType {
   public func post<Response: Codable>(request: URLRequest) async -> Result<ResponseWithHeaders<Response>, Error> {
     do {
       let (data, response) = try await self.session.data(for: request)
-      let httpResponse = (response as? HTTPURLResponse)
-      let statusCode = httpResponse?.statusCode ?? 0
-      let headers = httpResponse?.allHeaderFields ?? [:]
+      guard let httpResponse = response as? HTTPURLResponse else {
+        return .failure(PostError.invalidResponse)
+      }
+      let statusCode = httpResponse.statusCode
+      let headers = httpResponse.allHeaderFields
       
       if statusCode >= HTTPStatusCode.badRequest && statusCode < HTTPStatusCode.internalServerError {
-        if let httpResponse,
-           httpResponse.containsDpopError(),
+        if httpResponse.containsDpopError(),
            let dPopNonce = headers.value(forCaseInsensitiveKey: Constants.DPOP_NONCE_HEADER) as? String {
           return .failure(
             PostError.useDpopNonce(
@@ -161,6 +165,24 @@ public struct Poster: PostingType {
         
       } else if statusCode >= HTTPStatusCode.internalServerError {
         return .failure(PostError.serverError)
+      }
+
+      guard statusCode.isWithinRange(HTTPStatusCode.ok...HTTPStatusCode.imUsed) else {
+        return .failure(
+          PostError.requestError(
+            statusCode,
+            URLError(.badServerResponse)
+          )
+        )
+      }
+
+      if data.isEmpty, let emptyResponse = EmptyResponse() as? Response {
+        return .success(
+          .init(
+            headers: headers,
+            body: emptyResponse
+          )
+        )
       }
       
       do {

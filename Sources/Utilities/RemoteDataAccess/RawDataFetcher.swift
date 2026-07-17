@@ -59,19 +59,21 @@ public struct RawDataFetcher: RawDataFetching {
       
       let (data, response) = try await self.session.data(for: request)
       
-      let httpResponse = response as? HTTPURLResponse
-      let statusCode = httpResponse?.statusCode ?? 0
+      guard let httpResponse = response as? HTTPURLResponse else {
+        return .failure(.invalidResponse)
+      }
+      let statusCode = httpResponse.statusCode
       
       if !statusCode.isWithinRange(HTTPStatusCode.ok...HTTPStatusCode.imUsed) {
-        throw FetchError.invalidStatusCode(url, statusCode)
+        return .failure(.invalidStatusCode(url, statusCode))
       }
       
       // Extract headers from the HTTP response
-      let headers = httpResponse?.allHeaderFields.compactMapValues { value in
+      let headers = httpResponse.allHeaderFields.compactMapValues { value in
         value as? String
       }.reduce(into: [String: String]()) { result, element in
         result[element.key as? String ?? ""] = element.value
-      } ?? [:]
+      }
       
       let fetchResponse = RawFetchResponse(
         data: data,
@@ -79,9 +81,8 @@ public struct RawDataFetcher: RawDataFetching {
       )
       
       return .success(fetchResponse)
-    } catch let error as NSError {
+    } catch {
       return .failure(.networkError(error))
     }
   }
 }
-
