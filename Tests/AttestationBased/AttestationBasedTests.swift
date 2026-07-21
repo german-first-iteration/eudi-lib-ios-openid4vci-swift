@@ -30,7 +30,7 @@ class AttestationBasedTests: XCTestCase {
     )
 
     XCTAssertEqual(clientAttestation.clientId, "test-client")
-    XCTAssertEqual(clientAttestation.claimsSet.walletName.value, "Test Wallet Solution")
+    XCTAssertEqual(clientAttestation.claimsSet.walletName?.value, "Test Wallet Solution")
     XCTAssertEqual(clientAttestation.claimsSet.walletVersion.value, "1.0.0")
     XCTAssertEqual(clientAttestation.claimsSet.clientStatus.status.statusList.index, 0)
     XCTAssertNotNil(clientAttestation.publicKey)
@@ -207,15 +207,12 @@ class AttestationBasedTests: XCTestCase {
 
   // MARK: - TS3 WIA validation tests
 
-  func testWIA_missingWalletName_shouldFail() throws {
+  func testWIA_missingWalletName_shouldSucceedWithNilWalletName() throws {
     let jwt = try makeWIAJWT { payload in
       payload.removeValue(forKey: "wallet_name")
     }
-    XCTAssertThrowsError(try ClientAttestationJWT(jws: JWS(compactSerialization: jwt))) { error in
-      guard case ClientAttestationError.missingWalletName = error else {
-        XCTFail("Expected missingWalletName, got \(error)"); return
-      }
-    }
+    let clientAttestation = try ClientAttestationJWT(jws: JWS(compactSerialization: jwt))
+    XCTAssertNil(clientAttestation.claimsSet.walletName)
   }
 
   func testWIA_missingWalletVersion_shouldFail() throws {

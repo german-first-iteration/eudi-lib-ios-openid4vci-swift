@@ -90,7 +90,7 @@ public struct ClientAttestationJWTClaims: Sendable {
   public let confirmation: ConfirmationClaim
   public let issuedAt: Date?
   public let notBefore: Date?
-  public let walletName: NonBlankString
+  public let walletName: NonBlankString?
   public let walletLink: NonBlankString?
   public let status: StatusClaim?
   public let walletVersion: NonBlankString
@@ -104,7 +104,7 @@ public struct ClientAttestationJWTClaims: Sendable {
     confirmation: ConfirmationClaim,
     issuedAt: Date?,
     notBefore: Date?,
-    walletName: NonBlankString,
+    walletName: NonBlankString?,
     walletLink: NonBlankString?,
     status: StatusClaim?,
     walletVersion: NonBlankString,
@@ -166,11 +166,13 @@ extension ClientAttestationJWTClaims {
     // nbf — optional
     let notBefore: Date? = payload[JWTClaimNames.notBefore].double.map(Date.init(timeIntervalSince1970:))
 
-    // wallet_name — required, non-blank
-    guard let walletNameString = payload[JWTClaimNames.walletName].string else {
-      throw ClientAttestationError.missingWalletName
+    // wallet_name — optional, non-blank when present
+    let walletName: NonBlankString?
+    if let walletNameString = payload[JWTClaimNames.walletName].string {
+      walletName = try NonBlankString(walletNameString, claimName: JWTClaimNames.walletName)
+    } else {
+      walletName = nil
     }
-    let walletName = try NonBlankString(walletNameString, claimName: JWTClaimNames.walletName)
 
     // wallet_link — optional, non-blank when present
     let walletLink: NonBlankString?
