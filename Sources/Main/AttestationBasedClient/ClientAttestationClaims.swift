@@ -93,7 +93,7 @@ public struct ClientAttestationJWTClaims: Sendable {
   public let walletName: NonBlankString?
   public let walletLink: NonBlankString?
   public let status: StatusClaim?
-  public let walletVersion: NonBlankString
+  public let walletVersion: NonBlankString?
   public let walletSolutionCertificationInformation: WalletSolutionCertificationInformation
   public let clientStatus: ClientStatusClaim
 
@@ -107,7 +107,7 @@ public struct ClientAttestationJWTClaims: Sendable {
     walletName: NonBlankString?,
     walletLink: NonBlankString?,
     status: StatusClaim?,
-    walletVersion: NonBlankString,
+    walletVersion: NonBlankString?,
     walletSolutionCertificationInformation: WalletSolutionCertificationInformation,
     clientStatus: ClientStatusClaim
   ) {
@@ -190,11 +190,13 @@ extension ClientAttestationJWTClaims {
       status = nil
     }
 
-    // wallet_version — required, non-blank
-    guard let walletVersionString = payload[JWTClaimNames.walletVersion].string else {
-      throw ClientAttestationError.missingWalletVersion
+    // wallet_version — optional, non-blank when present
+    let walletVersion: NonBlankString?
+    if let walletVersionString = payload[JWTClaimNames.walletName].string {
+      walletVersion = try NonBlankString(walletVersionString, claimName: JWTClaimNames.walletVersion)
+    } else {
+      walletVersion = nil
     }
-    let walletVersion = try NonBlankString(walletVersionString, claimName: JWTClaimNames.walletVersion)
 
     // wallet_solution_certification_information — required, any JSON shape
     let wsci = payload[JWTClaimNames.walletSolutionCertificationInformation]
