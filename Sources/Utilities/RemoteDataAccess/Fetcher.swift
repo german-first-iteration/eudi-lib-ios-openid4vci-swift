@@ -37,8 +37,8 @@ public enum FetchError: LocalizedError {
       return ".invalidResponse"
     case .decodingError(let error):
       return ".decodingError \(error.localizedDescription)"
-    case .invalidStatusCode(let code, let url):
-      return ".invalidStatusCode \(code) \(url)"
+    case .invalidStatusCode(let url, let code):
+      return ".invalidStatusCode \(url) \(code)"
     }
   }
 }
@@ -113,21 +113,21 @@ public struct Fetcher<Element: Decodable>: Fetching {
     do {
       let (data, response) = try await self.session.data(from: url)
 
-      let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-      if !statusCode.isWithinRange(HTTPStatusCode.ok...HTTPStatusCode.imUsed) {
-        throw FetchError.invalidStatusCode(url, statusCode)
+      guard let httpResponse = response as? HTTPURLResponse else {
+        return .failure(.invalidResponse)
       }
-      let object = try JSONDecoder().decode(Element.self, from: data)
-
-      return .success(object)
-    } catch let error as NSError {
-      if error.domain == NSURLErrorDomain {
-        return .failure(.networkError(error))
-      } else {
+      let statusCode = httpResponse.statusCode
+      if !statusCode.isWithinRange(HTTPStatusCode.ok...HTTPStatusCode.imUsed) {
+        return .failure(.invalidStatusCode(url, statusCode))
+      }
+      do {
+        let object = try JSONDecoder().decode(Element.self, from: data)
+        return .success(object)
+      } catch {
         return .failure(.decodingError(error))
       }
     } catch {
-      return .failure(.decodingError(error))
+      return .failure(.networkError(error))
     }
   }
 
@@ -135,9 +135,12 @@ public struct Fetcher<Element: Decodable>: Fetching {
     do {
       let (data, response) = try await self.session.data(from: url)
       
-      let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+      guard let httpResponse = response as? HTTPURLResponse else {
+        return .failure(.invalidResponse)
+      }
+      let statusCode = httpResponse.statusCode
       if !statusCode.isWithinRange(HTTPStatusCode.ok...HTTPStatusCode.imUsed) {
-        throw FetchError.invalidStatusCode(url, statusCode)
+        return .failure(.invalidStatusCode(url, statusCode))
       }
       
       if let string = String(data: data, encoding: .utf8) {
@@ -153,6 +156,8 @@ public struct Fetcher<Element: Decodable>: Fetching {
         
         return .failure(.decodingError(error))
       }
+    } catch {
+      return .failure(.networkError(error))
     }
   }
 }
