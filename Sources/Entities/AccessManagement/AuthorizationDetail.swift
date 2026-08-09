@@ -21,12 +21,28 @@ public struct AuthorizationType: Codable, Sendable {
   public init(type: String) {
     self.type = type
   }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    type = try container.decode(String.self)
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    try container.encode(type)
+  }
 }
 
 public struct AuthorizationDetail: Codable, Sendable {
   public let type: AuthorizationType
   public let locations: [String]
   public let credentialConfigurationId: String
+
+  enum CodingKeys: String, CodingKey {
+    case type
+    case locations
+    case credentialConfigurationId = "credential_configuration_id"
+  }
   
   public init(
     type: AuthorizationType,
@@ -36,5 +52,27 @@ public struct AuthorizationDetail: Codable, Sendable {
     self.type = type
     self.locations = locations
     self.credentialConfigurationId = credentialConfigurationId
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    type = try container.decode(AuthorizationType.self, forKey: .type)
+    locations = try container.decodeIfPresent([String].self, forKey: .locations) ?? []
+    credentialConfigurationId = try container.decode(
+      String.self,
+      forKey: .credentialConfigurationId
+    )
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(type, forKey: .type)
+    if !locations.isEmpty {
+      try container.encode(locations, forKey: .locations)
+    }
+    try container.encode(
+      credentialConfigurationId,
+      forKey: .credentialConfigurationId
+    )
   }
 }

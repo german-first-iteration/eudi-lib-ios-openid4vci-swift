@@ -31,6 +31,7 @@ class AuthorizationDetailTests: XCTestCase {
     let encoded = try JSONEncoder().encode(original)
     let decoded = try JSONDecoder().decode(AuthorizationType.self, from: encoded)
     XCTAssertEqual(decoded.type, original.type)
+    XCTAssertEqual(String(decoding: encoded, as: UTF8.self), "\"vc_auth\"")
   }
   
   func testAuthorizationDetailInit_ShouldSetPropertiesCorrectly() {
@@ -69,5 +70,13 @@ class AuthorizationDetailTests: XCTestCase {
     
     XCTAssertEqual(decoded.locations, [])
     XCTAssertEqual(decoded.credentialConfigurationId, configId)
+
+    let json = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+    )
+    XCTAssertEqual(json["type"] as? String, "vc_auth")
+    XCTAssertEqual(json["credential_configuration_id"] as? String, configId)
+    XCTAssertNil(json["credentialConfigurationId"])
+    XCTAssertNil(json["locations"])
   }
 }
